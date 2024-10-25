@@ -25,6 +25,7 @@
   20170304 JP: added the 16-bit checksum 8-bit wide
 */
 
+#define __COMMON_C__
 #include "common.h"
 
 filetype    Filename;           /* string for opening files */
@@ -54,6 +55,7 @@ unsigned int Max_Length = 0;
 unsigned int Minimum_Block_Size = 0x1000; // 4096 byte
 unsigned int Floor_Address = 0x0;  
 unsigned int Ceiling_Address = 0xFFFFFFFF; 
+unsigned int CRC_Address;
 int Module;
 bool Minimum_Block_Size_Setted = false;
 bool Starting_Address_Setted = false;
@@ -64,6 +66,8 @@ bool Swap_Wordwise = false;
 bool Address_Alignment_Word = false;
 bool Batch_Mode = false;
 bool Verbose_Flag = false;
+bool Unverbose_Flag = false;
+bool CRC_Address_Setted = false;
 
 int Endian = 0;
 
@@ -103,6 +107,8 @@ void usage(void)
              "  -p [value]    Pad-byte value in hex (default: %x)\n"
              "  -r [start] [end]\n"
              "                Range to compute checksum over (default is min and max addresses)\n"
+             "  -R [address]  Get 16-bit CRC from hex file at specified address\n"
+             "                (no bin file creation)\n"
              "  -s [address]  Starting address in hex for binary file (default: 0)\n"
              "                ex.: if the first record is :nn010000ddddd...\n"
              "                the data supposed to be stored at 0100 will start at 0000\n"
@@ -112,6 +118,7 @@ void usage(void)
              "                will start at the same address in the binary file.\n"
              "  -t [address]  Floor address in hex (hex2bin only)\n"
              "  -T [address]  Ceiling address in hex (hex2bin only)\n"
+             "  -u            Unverbose - print only CRC to console - together with -R"
              "  -v            Verbose messages for debugging purposes\n"
              "  -w            Swap wordwise (low <-> high)\n\n",
              Pgm_Name,Pad_Byte);
@@ -650,11 +657,14 @@ void Allocate_Memory_And_Rewind(void)
     else
         Highest_Address = Lowest_Address + Max_Length - 1;
 
-    fprintf(stdout,"Allocate_Memory_and_Rewind:\n");
-	fprintf(stdout,"Lowest address:   %08X\n",Lowest_Address);
-	fprintf(stdout,"Highest address:  %08X\n",Highest_Address);
-	fprintf(stdout,"Starting address: %08X\n",Starting_Address);
-	fprintf(stdout,"Max Length:       %u\n\n",Max_Length);
+    if(!Unverbose_Flag)
+    {
+        fprintf(stdout,"Allocate_Memory_and_Rewind:\n");
+        fprintf(stdout,"Lowest address:   %08X\n",Lowest_Address);
+        fprintf(stdout,"Highest address:  %08X\n",Highest_Address);
+        fprintf(stdout,"Starting address: %08X\n",Starting_Address);
+        fprintf(stdout,"Max Length:       %u\n\n",Max_Length);
+    }
 
     /* Now that we know the buffer size, we can allocate it. */
     /* allocate a buffer */
@@ -744,6 +754,15 @@ char *p;
                 Enable_Checksum_Error = true;
                 i = 0;
                 break;
+            case 'C':
+                Crc_Poly = GetHex(argv[Param + 1]);
+                Crc_Init = GetHex(argv[Param + 2]);
+                Crc_RefIn = GetBoolean(argv[Param + 3]);
+                Crc_RefOut = GetBoolean(argv[Param + 4]);
+                Crc_XorOut = GetHex(argv[Param + 5]);
+                CrcParamsCheck();
+                i = 5; /* add 5 to Param */
+                break;
             case 'd':
                 DisplayCheckMethods();
             case 'e':
@@ -797,6 +816,11 @@ char *p;
                 Cks_range_set = true;
                 i = 2; /* add 2 to Param */
                 break;
+            case 'R':
+                CRC_Address = GetHex(argv[Param + 1]);
+                CRC_Address_Setted = true;
+                i = 1; /* add 1 to Param */
+                break;
             case 's':
                 Starting_Address = GetHex(argv[Param + 1]);
                 Starting_Address_Setted = true;
@@ -816,18 +840,13 @@ char *p;
                 Ceiling_Address_Setted = true;
                 i = 1; /* add 1 to Param */
                 break;
+            case 'u':
+                Unverbose_Flag = true;
+                i = 0;
+                break;
             case 'w':
                 Swap_Wordwise = true;
                 i = 0;
-                break;
-            case 'C':
-                Crc_Poly = GetHex(argv[Param + 1]);
-                Crc_Init = GetHex(argv[Param + 2]);
-                Crc_RefIn = GetBoolean(argv[Param + 3]);
-                Crc_RefOut = GetBoolean(argv[Param + 4]);
-                Crc_XorOut = GetHex(argv[Param + 5]);
-                CrcParamsCheck();
-                i = 5; /* add 5 to Param */
                 break;
 
             case '?':
@@ -847,7 +866,9 @@ char *p;
 
         }
         else
+        {
             break;
+        }
         /* if option */
     } /* for Param */
 }
